@@ -1,0 +1,21 @@
+paths:
+  raw_data: "/kaggle/input/amazon-reviews/amazon_reviews_multilingual_US_v1_00.tsv"
+  parquet_data: "/kaggle/working/amazon_reviews_clean/"
+  sample_1pct: "/kaggle/working/sample_1pct/"
+  sample_10pct: "/kaggle/working/sample_10pct/"
+  model_output: "/kaggle/working/models/"
+
+spark:
+  driver_memory: "24g"
+  shuffle_partitions: 200
+
+preprocessing:
+  min_user_reviews: 5
+  min_item_reviews: 10
+  test_ratio: 0.2
+
+als:
+  rank: 50
+  max_iter: 10
+  reg_param: 0.01
+```
