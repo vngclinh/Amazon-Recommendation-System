@@ -1,0 +1,760 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Goodreads RecSys Demo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0f0f11;
+        --surface: #17171a;
+        --surface2: #1e1e22;
+        --border: rgba(255, 255, 255, 0.07);
+        --border2: rgba(255, 255, 255, 0.12);
+        --text: #e8e8ea;
+        --muted: #7a7a82;
+        --accent: #7c6af7;
+        --accent2: #3ecf8e;
+        --accent3: #f5a623;
+        --red: #e05252;
+        --mono: "DM Mono", monospace;
+        --sans: "DM Sans", sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--sans);
+        font-size: 14px;
+        line-height: 1.6;
+        min-height: 100vh;
+      }
+
+      /* layout */
+      .app {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        min-height: 100vh;
+      }
+
+      /* sidebar */
+      .sidebar {
+        background: var(--surface);
+        border-right: 1px solid var(--border);
+        padding: 24px 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        overflow-y: auto;
+      }
+      .logo {
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        text-transform: uppercase;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 16px;
+      }
+      .logo span {
+        color: var(--accent);
+        font-weight: 500;
+      }
+      .section-label {
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+      select {
+        width: 100%;
+        background: var(--surface2);
+        color: var(--text);
+        border: 1px solid var(--border2);
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-family: var(--mono);
+        font-size: 12px;
+        appearance: none;
+        cursor: pointer;
+        outline: none;
+      }
+      select:focus {
+        border-color: var(--accent);
+      }
+      .btn {
+        width: 100%;
+        padding: 10px;
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        font-family: var(--sans);
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: opacity 0.15s;
+      }
+      .btn:hover {
+        opacity: 0.85;
+      }
+      .btn-ghost {
+        background: transparent;
+        border: 1px solid var(--border2);
+        color: var(--muted);
+      }
+      .btn-ghost:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+        opacity: 1;
+      }
+      .uid-box {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 8px 10px;
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--muted);
+        word-break: break-all;
+        line-height: 1.5;
+      }
+      .uid-label {
+        font-size: 10px;
+        color: var(--muted);
+        margin-bottom: 4px;
+      }
+
+      /* model info box */
+      .model-info {
+        background: linear-gradient(
+          135deg,
+          rgba(124, 106, 247, 0.1),
+          rgba(62, 207, 142, 0.05)
+        );
+        border: 1px solid rgba(124, 106, 247, 0.2);
+        border-radius: 8px;
+        padding: 12px;
+      }
+      .model-info .row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11px;
+        padding: 3px 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .model-info .row:last-child {
+        border-bottom: none;
+      }
+      .model-info .key {
+        color: var(--muted);
+      }
+      .model-info .val {
+        font-family: var(--mono);
+        color: var(--accent2);
+      }
+
+      /* main */
+      .main {
+        padding: 32px 36px;
+        overflow-y: auto;
+      }
+      .page-title {
+        font-size: 22px;
+        font-weight: 300;
+        color: var(--text);
+        margin-bottom: 4px;
+      }
+      .page-sub {
+        font-size: 13px;
+        color: var(--muted);
+        margin-bottom: 28px;
+      }
+
+      /* steps */
+      .pipeline {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .step {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .step-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface2);
+      }
+      .step-num {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: rgba(124, 106, 247, 0.15);
+        border: 1px solid rgba(124, 106, 247, 0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--accent);
+        flex-shrink: 0;
+      }
+      .step-title {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text);
+      }
+      .step-body {
+        padding: 16px 18px;
+      }
+
+      /* metrics */
+      .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+      }
+      .metric {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px;
+      }
+      .metric-k {
+        font-size: 10px;
+        color: var(--muted);
+        margin-bottom: 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .metric-v {
+        font-size: 20px;
+        font-weight: 500;
+        color: var(--text);
+      }
+      .metric-v.small {
+        font-size: 13px;
+        margin-top: 2px;
+      }
+
+      /* bars */
+      .bar-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 8px;
+      }
+      .bar-label {
+        font-size: 12px;
+        color: var(--muted);
+        width: 110px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        flex-shrink: 0;
+      }
+      .bar-track {
+        flex: 1;
+        height: 5px;
+        background: rgba(255, 255, 255, 0.06);
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .bar-fill {
+        height: 100%;
+        border-radius: 3px;
+        transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .bar-val {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted);
+        min-width: 44px;
+        text-align: right;
+      }
+
+      .genre-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 4px 20px;
+      }
+
+      /* blend */
+      .blend-track {
+        height: 12px;
+        border-radius: 6px;
+        overflow: hidden;
+        display: flex;
+        margin: 10px 0;
+      }
+      .blend-als {
+        background: var(--accent);
+        height: 100%;
+      }
+      .blend-taste {
+        background: var(--accent2);
+        height: 100%;
+      }
+      .blend-legend {
+        display: flex;
+        gap: 20px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 2px;
+        display: inline-block;
+        margin-right: 5px;
+        vertical-align: middle;
+      }
+      .formula-box {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 10px 14px;
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--accent3);
+        margin-top: 12px;
+      }
+
+      /* books */
+      .book-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .book-item {
+        display: grid;
+        grid-template-columns: 28px 1fr auto;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 12px;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        transition: border-color 0.15s;
+      }
+      .book-item:hover {
+        border-color: var(--border2);
+      }
+      .book-rank {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted);
+        text-align: center;
+      }
+      .book-id {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--text);
+      }
+      .book-topic {
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+      .book-score {
+        text-align: right;
+      }
+      .score-num {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--accent2);
+      }
+      .score-mini {
+        width: 60px;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.06);
+        border-radius: 2px;
+        overflow: hidden;
+        margin-top: 4px;
+      }
+      .score-mini-fill {
+        height: 100%;
+        background: var(--accent2);
+        border-radius: 2px;
+      }
+
+      /* empty state */
+      .empty {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--muted);
+      }
+      .empty-icon {
+        font-size: 40px;
+        margin-bottom: 12px;
+        opacity: 0.3;
+      }
+      .empty-text {
+        font-size: 14px;
+      }
+
+      /* loading */
+      #loadStatus {
+        font-size: 12px;
+        color: var(--muted);
+        font-family: var(--mono);
+        margin-top: 8px;
+      }
+
+      @media (max-width: 900px) {
+        .app {
+          grid-template-columns: 1fr;
+        }
+        .sidebar {
+          position: relative;
+          height: auto;
+        }
+        .metric-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .genre-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <!-- SIDEBAR -->
+      <aside class="sidebar">
+        <div class="logo">Goodreads <span>RecSys</span> Demo</div>
+
+        <div>
+          <div class="section-label">Select user</div>
+          <select id="userSelect">
+            <option value="">Loading data…</option>
+          </select>
+          <div id="loadStatus"></div>
+        </div>
+
+        <button class="btn" id="randomBtn">Random user</button>
+
+        <div id="uidWrap" style="display: none">
+          <div class="uid-label">User ID</div>
+          <div class="uid-box" id="uidBox"></div>
+        </div>
+
+        <div>
+          <div class="section-label">Model</div>
+          <div class="model-info">
+            <div class="row">
+              <span class="key">Formula</span><span class="val">F3</span>
+            </div>
+            <div class="row">
+              <span class="key">Affinity</span
+              ><span class="val">rating × log(len+1)</span>
+            </div>
+            <div class="row">
+              <span class="key">Alpha</span><span class="val">0.7</span>
+            </div>
+            <div class="row">
+              <span class="key">Recall@10</span><span class="val">0.6122</span>
+            </div>
+            <div class="row">
+              <span class="key">NDCG@10</span><span class="val">0.5369</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- MAIN -->
+      <main class="main">
+        <div class="page-title">User taste pipeline</div>
+        <div class="page-sub">
+          Phân tích từng bước: genre affinity → topic profile → blend →
+          recommendations
+        </div>
+
+        <div id="emptyState" class="empty">
+          <div class="empty-icon">📚</div>
+          <div class="empty-text">Chọn một user để xem kết quả</div>
+        </div>
+
+        <div id="pipeline" class="pipeline" style="display: none">
+          <!-- Step 1 -->
+          <div class="step">
+            <div class="step-head">
+              <div class="step-num">1</div>
+              <div class="step-title">User overview</div>
+            </div>
+            <div class="step-body">
+              <div class="metric-grid" id="metricGrid"></div>
+            </div>
+          </div>
+
+          <!-- Step 2 -->
+          <div class="step">
+            <div class="step-head">
+              <div class="step-num">2</div>
+              <div class="step-title">Genre affinity</div>
+            </div>
+            <div class="step-body">
+              <div class="genre-grid" id="genreGrid"></div>
+            </div>
+          </div>
+
+          <!-- Step 3 -->
+          <div class="step">
+            <div class="step-head">
+              <div class="step-num">3</div>
+              <div class="step-title">Topic profile — top 8 LDA topics</div>
+            </div>
+            <div class="step-body" id="topicBars"></div>
+          </div>
+
+          <!-- Step 4 -->
+          <div class="step">
+            <div class="step-head">
+              <div class="step-num">4</div>
+              <div class="step-title">Score blend: ALS + Taste</div>
+            </div>
+            <div class="step-body">
+              <div class="blend-legend">
+                <span
+                  ><span class="dot" style="background: var(--accent)"></span
+                  >ALS collaborative (70%)</span
+                >
+                <span
+                  ><span class="dot" style="background: var(--accent2)"></span
+                  >Taste semantic (30%)</span
+                >
+              </div>
+              <div class="blend-track">
+                <div class="blend-als" style="width: 70%"></div>
+                <div class="blend-taste" style="width: 30%"></div>
+              </div>
+              <div class="formula-box">
+                score = 0.7 × norm(ALS_dot) + 0.3 × cosine_sim(user_topic,
+                book_topic)<br />
+                affinity (F3) = rating × log(review_length + 1)<br />
+                ALS: 64 factors, 20 iters, α=40
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 5 -->
+          <div class="step">
+            <div class="step-head">
+              <div class="step-num">5</div>
+              <div class="step-title">Top 10 recommended books</div>
+            </div>
+            <div class="step-body">
+              <div class="book-list" id="bookList"></div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      let DATA = null;
+
+      async function loadData() {
+        const status = document.getElementById("loadStatus");
+        status.textContent = "Loading demo_data.json…";
+        try {
+          const r = await fetch("./demo_data.json");
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          DATA = await r.json();
+          status.textContent =
+            "✓ " + Object.keys(DATA.users).length + " users loaded";
+          initSelect();
+        } catch (e) {
+          status.textContent =
+            "✗ Lỗi: " +
+            e.message +
+            " — chắc chắn demo_data.json cùng thư mục và đang dùng http server";
+          document.getElementById("userSelect").innerHTML =
+            "<option>— lỗi load data —</option>";
+        }
+      }
+
+      function initSelect() {
+        const sel = document.getElementById("userSelect");
+        const users = Object.keys(DATA.users);
+        sel.innerHTML =
+          '<option value="">— chọn user —</option>' +
+          users
+            .map((u) => `<option value="${u}">${u.slice(0, 20)}…</option>`)
+            .join("");
+        sel.addEventListener("change", () => renderUser(sel.value));
+        document.getElementById("randomBtn").addEventListener("click", () => {
+          const pick = users[Math.floor(Math.random() * users.length)];
+          sel.value = pick;
+          renderUser(pick);
+        });
+      }
+
+      const COLORS = [
+        "#7c6af7",
+        "#3ecf8e",
+        "#f5a623",
+        "#e05252",
+        "#38bdf8",
+        "#fb923c",
+        "#a78bfa",
+        "#34d399",
+        "#f472b6",
+        "#60a5fa",
+        "#fbbf24",
+        "#4ade80",
+      ];
+
+      function renderUser(uid) {
+        if (!uid || !DATA.users[uid]) {
+          document.getElementById("pipeline").style.display = "none";
+          document.getElementById("emptyState").style.display = "block";
+          document.getElementById("uidWrap").style.display = "none";
+          return;
+        }
+        document.getElementById("pipeline").style.display = "flex";
+        document.getElementById("emptyState").style.display = "none";
+        document.getElementById("uidWrap").style.display = "block";
+        document.getElementById("uidBox").textContent = uid;
+
+        const u = DATA.users[uid];
+        const genres = u.genre_affinity;
+        const topics = u.topic_profile;
+
+        // Step 1 metrics
+        const sortedGenres = Object.entries(genres).sort((a, b) => b[1] - a[1]);
+        const sortedTopics = Object.entries(topics).sort((a, b) => b[1] - a[1]);
+        const topGenre = sortedGenres[0];
+        const topTopic = sortedTopics[0];
+        const topTopicLabel = (DATA.topic_labels?.[topTopic[0]] || topTopic[0])
+          .split(",")[0]
+          .trim();
+        const activeGenres = Object.values(genres).filter(
+          (v) => v > 0.01,
+        ).length;
+
+        document.getElementById("metricGrid").innerHTML = `
+    <div class="metric"><div class="metric-k">Top genre</div><div class="metric-v small">${topGenre[0]}</div></div>
+    <div class="metric"><div class="metric-k">Active genres</div><div class="metric-v">${activeGenres}</div></div>
+    <div class="metric"><div class="metric-k">Top topic</div><div class="metric-v small">${topTopicLabel}</div></div>
+    <div class="metric"><div class="metric-k">Topic weight</div><div class="metric-v">${topTopic[1].toFixed(3)}</div></div>
+  `;
+
+        // Step 2 genre bars
+        const maxG = sortedGenres[0][1] || 1;
+        document.getElementById("genreGrid").innerHTML = sortedGenres
+          .slice(0, 14)
+          .map(
+            ([g, v], i) => `
+    <div class="bar-row">
+      <div class="bar-label" title="${g}">${g}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${((v / maxG) * 100).toFixed(1)}%;background:${COLORS[i % COLORS.length]}"></div></div>
+      <div class="bar-val">${v.toFixed(3)}</div>
+    </div>`,
+          )
+          .join("");
+
+        // Step 3 topic bars
+        const maxT = sortedTopics[0][1] || 1;
+        document.getElementById("topicBars").innerHTML = sortedTopics
+          .slice(0, 8)
+          .map(([t, v]) => {
+            const lbl = (DATA.topic_labels?.[t] || t)
+              .split(",")
+              .slice(0, 3)
+              .join(", ");
+            return `<div class="bar-row">
+      <div class="bar-label" title="${lbl}">${lbl}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${((v / maxT) * 100).toFixed(1)}%;background:#3ecf8e"></div></div>
+      <div class="bar-val">${v.toFixed(3)}</div>
+    </div>`;
+          })
+          .join("");
+
+        // Step 5 — ALS dot product + Taste cosine sim, blend alpha=0.7
+        const ALPHA = 0.7;
+        const uAls = u.als_vec;
+
+        // Taste: user topic vec normalized
+        const tcols = Object.keys(topics).sort();
+        const uTopic = tcols.map((k) => topics[k] || 0);
+        const uTopicNorm =
+          Math.sqrt(uTopic.reduce((s, v) => s + v * v, 0)) || 1;
+
+        const rawScored = Object.entries(DATA.books).map(([bid, book]) => {
+          // ALS score: dot(user_als, book_als)
+          const bAls = book.als_vec;
+          const alsScore = uAls.reduce((s, v, i) => s + v * (bAls[i] || 0), 0);
+
+          // Taste score: cosine sim on topic vecs
+          const bTopic = tcols.map((k) => (book.topic_vec || {})[k] || 0);
+          const bTopicNorm =
+            Math.sqrt(bTopic.reduce((s, v) => s + v * v, 0)) || 1;
+          const tasteScore =
+            uTopic.reduce((s, v, i) => s + v * bTopic[i], 0) /
+            (uTopicNorm * bTopicNorm);
+
+          return { bid, alsScore, tasteScore };
+        });
+
+        // Normalize ALS scores to [0,1]
+        const alsMax = Math.max(...rawScored.map((s) => s.alsScore)) || 1;
+        const alsMin = Math.min(...rawScored.map((s) => s.alsScore));
+        const alsRange = alsMax - alsMin || 1;
+
+        const scored = rawScored
+          .map((s) => ({
+            ...s,
+            score:
+              ALPHA * ((s.alsScore - alsMin) / alsRange) +
+              (1 - ALPHA) * s.tasteScore,
+          }))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 10);
+
+        const maxScore = scored[0]?.score || 1;
+        document.getElementById("bookList").innerHTML = scored
+          .map((s, i) => {
+            const book = DATA.books[s.bid];
+            const title = book?.title || `book_${s.bid}`;
+            const genre = book?.genre || "";
+            const year = book?.year || "";
+            const meta = [genre, year].filter(Boolean).join(" · ");
+            return `<div class="book-item">
+      <div class="book-rank">${i + 1}</div>
+      <div>
+        <div class="book-id">${title}</div>
+        <div class="book-topic">${meta}</div>
+      </div>
+      <div class="book-score">
+        <div class="score-num">${s.score.toFixed(4)}</div>
+        <div class="score-mini"><div class="score-mini-fill" style="width:${((s.score / maxScore) * 100).toFixed(1)}%"></div></div>
+      </div>
+    </div>`;
+          })
+          .join("");
+      }
+
+      loadData();
+    </script>
+  </body>
+</html>

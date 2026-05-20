@@ -1,0 +1,7 @@
+duckdb
+pandas
+pyarrow
+datasets
+huggingface_hub
+tqdm
+python-dotenv
