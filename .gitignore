@@ -4,3 +4,18 @@
 
 __pycache__/
 *.pyc
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Generated EDA / demo outputs
+eda_outputs/
+
+# OS files
+.DS_Store
+Thumbs.db

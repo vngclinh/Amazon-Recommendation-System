@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Goodreads Recommender — Kết quả Phase 3 (full-ranking)</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#181b22; --panel2:#1f232c; --ink:#e8eaf0; --mut:#9aa3b2;
+    --line:#2a2f3a; --acc:#6ea8fe; --pos:#46d39a; --neg:#ff6b7a; --warn:#ffce5a; --chain:#b08cff;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+  a{color:var(--acc);text-decoration:none}
+  nav{position:sticky;top:0;z-index:20;background:rgba(15,17,21,.85);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  nav .wrap{max-width:1080px;margin:0 auto;padding:10px 18px;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+  nav b{color:var(--ink);margin-right:8px}
+  nav a{color:var(--mut);font-size:13px}
+  nav a:hover{color:var(--ink)}
+  main{max-width:1080px;margin:0 auto;padding:0 18px 80px}
+  section{padding:54px 0;border-bottom:1px solid var(--line)}
+  h1{font-size:34px;line-height:1.2;margin:.2em 0}
+  h2{font-size:24px;margin:0 0 6px}
+  .tag{display:inline-block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--acc);font-weight:700;margin-bottom:6px}
+  .mut{color:var(--mut)}
+  .lead{font-size:18px;color:#c8cedb;max-width:760px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}
+  .chip{background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:6px 13px;font-size:13px}
+  .grid{display:grid;gap:16px;margin-top:18px}
+  .g2{grid-template-columns:repeat(2,1fr)} .g3{grid-template-columns:repeat(3,1fr)} .g4{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:780px){.g2,.g3,.g4{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px}
+  .stat{background:linear-gradient(160deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+  .stat .big{font-size:30px;font-weight:800;line-height:1.1}
+  .stat .lab{color:var(--mut);font-size:13px;margin-top:4px}
+  .pos{color:var(--pos)} .neg{color:var(--neg)} .warn{color:var(--warn)} .acc{color:var(--acc)} .chain{color:var(--chain)}
+  .chartbox{position:relative;height:320px}
+  .chartbox.sm{height:260px}
+  .note{font-size:13.5px;color:var(--mut);margin-top:10px}
+  .toggle{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin:6px 0 4px}
+  .toggle button{background:transparent;color:var(--mut);border:0;padding:8px 16px;font-size:14px;cursor:pointer}
+  .toggle button.on{background:var(--acc);color:#0b1220;font-weight:700}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:8px}
+  th,td{text-align:right;padding:7px 9px;border-bottom:1px solid var(--line)}
+  th:first-child,td:first-child{text-align:left}
+  thead th{color:var(--mut);font-weight:600}
+  .pill{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line)}
+  .pill.p{color:var(--pos);border-color:#1f5e45} .pill.n{color:var(--neg);border-color:#5e2730} .pill.w{color:var(--warn);border-color:#5e521f}
+  footer{max-width:1080px;margin:0 auto;padding:30px 18px;color:var(--mut);font-size:13px}
+  code{background:#10131a;border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:13px}
+  .reclist{display:flex;flex-direction:column;gap:7px}
+  .recitem{display:flex;gap:9px;align-items:center;font-size:13px;padding:6px;border:1px solid var(--line);border-radius:9px;background:var(--panel2)}
+  .recitem.hit{border-color:var(--pos);box-shadow:0 0 0 1px var(--pos) inset}
+  .recitem .cv{width:30px;height:44px;object-fit:cover;border-radius:4px;background:#11141b;flex:0 0 auto}
+  .recitem .tt{line-height:1.25}
+  .recitem .gn{color:var(--mut);font-size:11px}
+  .mhead{margin:0 0 8px;font-size:15px}
+  .hitbadge{margin-left:auto;font-size:10px;color:var(--pos);border:1px solid #1f5e45;border-radius:999px;padding:1px 7px}
+  select{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px}
+  input[type=file]{color:var(--mut);font-size:13px}
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <b>Goodreads Recommender</b>
+  <a href="#trap">Protocol Trap</a>
+  <a href="#h2h">Head-to-head</a>
+  <a href="#ablation">Engagement weights</a>
+  <a href="#hybrid">Hybrid</a>
+  <a href="#limit">Transfer limit</a>
+  <a href="#live">Live demo</a>
+  <a href="#method">Methodology</a>
+</div></nav>
+
+<main>
+  <!-- HERO -->
+  <section id="hero">
+    <div class="tag">Phase 3 · chainRec · Full-ranking evaluation</div>
+    <h1>Khi đổi sang đánh giá nghiêm ngặt,<br/>"cải thiện" có còn không?</h1>
+    <p class="lead">Dự án xây pipeline gợi ý trên Goodreads (15.7M reviews) rồi <b>kiểm chứng lại dưới full-ranking</b>
+      (chấm toàn bộ 1.57M item). Phát hiện: nhiều lợi ích đo bằng <i>sampled@500</i> bị thổi phồng — nhưng vẫn còn
+      những kết quả dương thật.</p>
+    <div class="chips">
+      <span class="chip">Phase 1 · Amazon Reviews 2018</span>
+      <span class="chip">Phase 2 · Goodreads ALS + edge-weighting</span>
+      <span class="chip">Phase 3 · chainRec (Wan &amp; McAuley, RecSys'18)</span>
+    </div>
+    <div class="grid g4">
+      <div class="stat"><div class="big pos">+3.6%</div><div class="lab">F3 review-length R@10 @ sampled@500 (Phase 2) — <b>positive</b></div></div>
+      <div class="stat"><div class="big neg">−0.8%</div><div class="lab">cùng F3 AUC dưới full-ranking (S3b) — lợi ích biến mất</div></div>
+      <div class="stat"><div class="big warn">5.5%</div><div class="lab">tỉ lệ edge interactions có review → F3 không transfer sang chainRec</div></div>
+      <div class="stat"><div class="big acc">0.9646</div><div class="lab">ALS thuần AUC > chainRec 0.9525 (full-ranking head-to-head)</div></div>
+    </div>
+  </section>
+
+  <!-- PROTOCOL TRAP -->
+  <section id="trap">
+    <div class="tag">⭐ Đóng góp lõi</div>
+    <h2>The Protocol Trap — sampled@500 vs full-ranking</h2>
+    <p class="mut">Cùng một mô hình, chỉ đổi cách chấm điểm. Sampled@500 chấm 1 positive + 500 negative ngẫu nhiên;
+      full-ranking chấm toàn bộ 1.57M item (mask item đã xem).</p>
+    <div class="toggle" id="trapToggle">
+      <button data-p="sampled" class="on">sampled@500</button>
+      <button data-p="full">full-ranking</button>
+    </div>
+    <div class="grid g2">
+      <div class="card">
+        <div class="chartbox"><canvas id="trapChart"></canvas></div>
+        <div class="note" id="trapNote"></div>
+      </div>
+      <div class="grid" style="align-content:start">
+        <div class="stat"><div class="lab">Recall@10 — chainRec (stagewise)</div><div class="big" id="trapR10">0.7746</div></div>
+        <div class="stat"><div class="lab">Lợi ích engagement-weight F3 (review-length)</div><div class="big" id="trapF3">+3.6%</div></div>
+        <div class="card note" style="margin:0">
+          <b>Đọc:</b> R@10 sụp từ ~0.77 (sampled) xuống ~0.05 (full) vì pool tăng từ 500 → 1.57M item.
+          Quan trọng hơn: <b>lợi ích F3 +3.6% (sampled) trở thành −0.8% (full)</b> → phần lớn là artifact của protocol.
+          (AUC ~0.95 đi kèm R@10 ~0.05 là khớp nhau, không mâu thuẫn.)
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HEAD TO HEAD -->
+  <section id="h2h">
+    <div class="tag">Full-ranking · stage recommend · cùng test/pool/mask</div>
+    <h2>Head-to-head: ALS vs chainRec vs Hybrid</h2>
+    <div class="grid g2">
+      <div class="card"><div class="chartbox"><canvas id="aucChart"></canvas></div>
+        <div class="note">AUC toàn cục. ALS thuần &gt; chainRec; hybrid ≈ ALS.</div></div>
+      <div class="card"><div class="chartbox"><canvas id="r10Chart"></canvas></div>
+        <div class="note">Recall@10 (top-K). ALS gấp ~3× chainRec; itemPop là sàn.</div></div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <table id="h2hTable"></table>
+      <div class="note">ALS được huấn luyện <i>trong chính index-space của chainRec</i> → so sánh apples-to-apples (chỉ khác kiến trúc).
+        Kết quả củng cố nhận định của paper: <b>Goodreads là dataset bất lợi nhất cho chainRec</b>.</div>
+    </div>
+  </section>
+
+  <!-- ABLATION -->
+  <section id="ablation">
+    <div class="tag">Engagement-weighting</div>
+    <h2>Trọng số nào tốt? Và nó có bền dưới full-ranking không?</h2>
+    <div class="grid g2">
+      <div class="card">
+        <h3 style="margin:0 0 4px;font-size:16px">Phase 2 — ablation 5 công thức <span class="pill p">sampled@500</span></h3>
+        <div class="chartbox sm"><canvas id="ablChart"></canvas></div>
+        <div class="note">F3 = <code>rating×log(length+1)</code> thắng (+3.6% R@10). votes (F1/F4) thua nặng → popularity bias.</div>
+      </div>
+      <div class="card">
+        <h3 style="margin:0 0 4px;font-size:16px">Phase 3 — cùng tín hiệu, <span class="pill w">full-ranking</span></h3>
+        <div class="chartbox sm"><canvas id="s3bChart"></canvas></div>
+        <div class="note">Trên reviews (coverage F3 = 100%): F3 −0.8% AUC (phẳng), votes −5.8% (vẫn hại) → votes-bias bền xuyên protocol, lợi ích F3 thì không.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HYBRID -->
+  <section id="hybrid">
+    <div class="tag">Rank-fusion</div>
+    <h2>Hybrid ALS ⊕ chainRec — quét α</h2>
+    <div class="grid g2">
+      <div class="card"><div class="chartbox"><canvas id="hybChart"></canvas></div>
+        <div class="note">α = trọng số ALS (α=0 → chainRec thuần, α=1 → ALS thuần). z-score per user rồi cộng.</div></div>
+      <div class="grid" style="align-content:start">
+        <div class="stat"><div class="lab">AUC tốt nhất</div><div class="big acc" id="hybBest">0.9647</div></div>
+        <div class="stat"><div class="lab">Δ so ALS thuần (trong khoảng nhiễu)</div><div class="big" id="hybDelta">≈ 0</div></div>
+        <div class="card note" style="margin:0">Hybrid <b>bỏ xa chainRec</b> nhưng <b>≈ ALS</b> (chênh top-K dưới ~1 SE) → fusion không cải thiện có ý nghĩa so với mô hình mạnh hơn; chainRec đóng góp rất ít trên Goodreads.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TRANSFER LIMIT -->
+  <section id="limit">
+    <div class="tag">Giới hạn transfer (định lượng)</div>
+    <h2>Vì sao review-length không weight được chainRec?</h2>
+    <div class="grid g2">
+      <div class="card"><div class="chartbox sm"><canvas id="covChart"></canvas></div>
+        <div class="note">Chỉ <b>5.5%</b> edge của đồ thị interactions có review (rec-edge 11.8%); σ trọng số = 0.087 → F3 gần như no-op khi train chainRec.</div></div>
+      <div class="card">
+        <h3 style="margin:0 0 8px;font-size:16px">Hai nguồn dữ liệu, chồng lấn thấp</h3>
+        <p class="mut" style="margin:0 0 10px">chainRec cần <b>chuỗi hành vi</b> (shelve→read→rate→recommend) — sống trong <code>interactions.csv</code>.
+          F3 cần <b>review-length</b> — sống trong <i>reviews</i>. Nơi có chuỗi thì hầu như không có review.</p>
+        <table id="chainTable"></table>
+        <div class="note">→ Đây là phát hiện về <b>giới hạn khả-transfer</b> của tín hiệu, không phải khuyết điểm của F3.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LIVE REC (Tier 2) -->
+  <section id="live">
+    <div class="tag">Tier 2 · Minh hoạ tương tác</div>
+    <h2>Live Recommendation Explorer</h2>
+    <p class="mut">Chọn 1 user mẫu → top-8 gợi ý của 3 model + lịch sử đọc + sách user thực sự thích (ground-truth).
+      Gợi ý trên full catalog (mask sách đã đọc); ô viền xanh = trúng ground-truth. Minh hoạ <i>hành vi</i> model — không phải bảng full-ranking.</p>
+    <div class="card" id="liveLoader">
+      <div class="note" id="liveStatus">Đang nạp <code>demo_recs.json</code>…</div>
+      <div id="liveFilePick" style="display:none;margin-top:8px">
+        <p class="mut" style="margin:0 0 6px">Mở bằng double-click (file://) nên không nạp tự động được. Chọn <code>demo_recs.json</code> thủ công (sinh từ <code>phase3_s5_precompute_demo.ipynb</code>):</p>
+        <input type="file" id="recFile" accept="application/json"/>
+      </div>
+    </div>
+    <div id="liveBody" style="display:none">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:6px">
+        <label class="mut" for="userSel">User mẫu:</label>
+        <select id="userSel"></select>
+      </div>
+      <div class="grid g2">
+        <div class="card"><h3 style="margin:0 0 8px;font-size:15px">📚 Lịch sử đọc</h3><div id="histBox" class="reclist"></div></div>
+        <div class="card"><h3 style="margin:0 0 8px;font-size:15px">🎯 Ground-truth (test, rating≥4)</h3><div id="truthBox" class="reclist"></div></div>
+      </div>
+      <div class="grid g3" style="margin-top:14px">
+        <div class="card"><h3 class="mhead chain">chainRec — top 8</h3><div id="recChainRec" class="reclist"></div></div>
+        <div class="card"><h3 class="mhead acc">ALS — top 8</h3><div id="recALS" class="reclist"></div></div>
+        <div class="card"><h3 class="mhead">hybrid — top 8</h3><div id="recHybrid" class="reclist"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- METHOD -->
+  <section id="method" style="border-bottom:0">
+    <div class="tag">Methodology &amp; Reproducibility</div>
+    <h2>Cách đánh giá &amp; tái lập</h2>
+    <div class="grid g2">
+      <div class="card">
+        <h3 style="margin:0 0 8px;font-size:16px">Hai protocol</h3>
+        <table>
+          <thead><tr><th>Tiêu chí</th><th>sampled@500</th><th>full-ranking</th></tr></thead>
+          <tbody>
+            <tr><td>Pool</td><td>1 pos + 500 neg</td><td>1.05–1.57M item</td></tr>
+            <tr><td>Metric chính</td><td>R@10 / N@10</td><td>AUC + R@10 / N@10</td></tr>
+            <tr><td>Đặc tính</td><td>thổi phồng</td><td>nghiêm, sát thực tế</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h3 style="margin:0 0 8px;font-size:16px">Notebook (S0→S4)</h3>
+        <p class="mut" style="margin:0">
+          <code>phase3_s0_reproduce_chainrec</code> · <code>phase3_s1a_fullrank_eval</code> ·
+          <code>phase3_s2_headtohead_eval</code> · <code>phase3_s3_f3_weighted</code> ·
+          <code>phase3_s3b_reviews_fullrank</code> · <code>phase3_s4_hybrid_multiseed</code>
+        </p>
+        <div class="note">Module <code>rank_eval</code> chung (model-agnostic) chấm ALS / chainRec / hybrid / itemPop trên cùng test.
+          Artifact: HuggingFace <code>vngclinh/goodreads-preprocessed</code> (<code>chainrec/ s2/ s3/ s3b/ s4/</code>).
+          Chi tiết: <a href="docs/RESULTS.md">RESULTS.md</a> (VI) · <a href="docs/RESULTS.en.md">RESULTS.en.md</a> (EN).</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  Group 5 — Large-Scale Recommender System · Goodreads UCSD Book Graph · chainRec (Wan &amp; McAuley, RecSys'18).
+  Số liệu nhúng tĩnh từ các notebook S0–S4 (full-ranking, 5000 test users, seed 999).
+</footer>
+
+<script>
+const DATA = {
+  s0:{uniform:{AUC:0.9437,R10:0.7530,N10:0.5921}, stagewise:{AUC:0.9479,R10:0.7746,N10:0.6193}},
+  s1a:{uniform:{AUC:0.9500,R10:0.0506,N10:0.0288}, stagewise:{AUC:0.9525,R10:0.0500,N10:0.0301}},
+  s2:{
+    "chainRec (uniform)":{AUC:0.9500,R10:0.0506,N10:0.0288},
+    "chainRec (stagewise)":{AUC:0.9525,R10:0.0500,N10:0.0301},
+    "ALS (vanilla)":{AUC:0.9646,R10:0.1588,N10:0.0988},
+    "itemPop (floor)":{AUC:0.2918,R10:0.0032,N10:0.0016}
+  },
+  abl:{ // Phase 2 sampled@500
+    labels:["F3 length★","F2 baseline","F5 binary","F1 votes","F4 votes+len"],
+    R10:[0.6122,0.5757,0.5613,0.4744,0.4237], N10:[0.5369,0.5107,0.4995,0.4217,0.3752]
+  },
+  s3b:{ // ALS on reviews, full-ranking
+    labels:["vanilla","+F3 length","+votes","itemPop"],
+    AUC:[0.8419,0.8350,0.7931,0.4636]
+  },
+  hybrid:{ alpha:[0,0.25,0.40,0.50,0.60,0.75,1.0],
+    AUC:[0.9525,0.9589,0.9599,0.9598,0.9594,0.9573,0.9647],
+    R10:[0.0500,0.1592,0.1606,0.1602,0.1602,0.1594,0.1588] },
+  coverage:{have:5.5, none:94.5}
+};
+const C={ink:'#e8eaf0',mut:'#9aa3b2',line:'#2a2f3a',acc:'#6ea8fe',pos:'#46d39a',neg:'#ff6b7a',warn:'#ffce5a',chain:'#b08cff'};
+Chart.defaults.color=C.mut; Chart.defaults.borderColor=C.line; Chart.defaults.font.family='system-ui';
+const fmt=v=>v.toFixed(4), pct=v=>(v*100).toFixed(2)+'%';
+
+/* ---- Protocol Trap ---- */
+let trapChart;
+function drawTrap(mode){
+  const d = mode==='sampled' ? DATA.s0 : DATA.s1a;
+  const ds = {labels:['uniform','stagewise'],
+    datasets:[{label:'Recall@10', data:[d.uniform.R10,d.stagewise.R10],
+      backgroundColor:mode==='sampled'?C.pos:C.neg, borderRadius:6}]};
+  if(trapChart) trapChart.destroy();
+  trapChart=new Chart(document.getElementById('trapChart'),{type:'bar',data:ds,
+    options:{plugins:{legend:{display:false},title:{display:true,text:'Recall@10 — chainRec ('+(mode==='sampled'?'sampled@500':'full-ranking')+')',color:C.ink}},
+      scales:{y:{beginAtZero:true,suggestedMax:mode==='sampled'?0.9:0.12}}}});
+  document.getElementById('trapR10').textContent=fmt(d.stagewise.R10);
+  const f3=document.getElementById('trapF3');
+  f3.textContent = mode==='sampled' ? '+3.6%' : '−0.8%';
+  f3.className='big '+(mode==='sampled'?'pos':'neg');
+  document.getElementById('trapNote').textContent =
+    mode==='sampled' ? 'sampled@500: số lớn, dễ — nhưng thổi phồng. F3 thắng baseline +3.6% R@10.'
+                     : 'full-ranking (1.57M item): R@10 sụp ~15×; lợi ích F3 lật thành −0.8% AUC.';
+}
+document.querySelectorAll('#trapToggle button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#trapToggle button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); drawTrap(b.dataset.p);
+});
+drawTrap('sampled');
+
+/* ---- Head to head ---- */
+const h2hLabels=Object.keys(DATA.s2);
+const cols=[C.chain,C.chain,C.acc,C.mut];
+new Chart(document.getElementById('aucChart'),{type:'bar',
+  data:{labels:h2hLabels,datasets:[{label:'AUC',data:h2hLabels.map(k=>DATA.s2[k].AUC),backgroundColor:cols,borderRadius:6}]},
+  options:{indexAxis:'y',plugins:{legend:{display:false},title:{display:true,text:'AUC (full-ranking)',color:C.ink}},scales:{x:{min:0.25,max:1}}}});
+new Chart(document.getElementById('r10Chart'),{type:'bar',
+  data:{labels:h2hLabels,datasets:[{label:'Recall@10',data:h2hLabels.map(k=>DATA.s2[k].R10),backgroundColor:cols,borderRadius:6}]},
+  options:{indexAxis:'y',plugins:{legend:{display:false},title:{display:true,text:'Recall@10 (full-ranking)',color:C.ink}},scales:{x:{beginAtZero:true}}}});
+// table
+let t='<thead><tr><th>Model</th><th>AUC</th><th>R@10</th><th>N@10</th></tr></thead><tbody>';
+h2hLabels.forEach(k=>{const r=DATA.s2[k];t+=`<tr><td>${k}</td><td>${fmt(r.AUC)}</td><td>${fmt(r.R10)}</td><td>${fmt(r.N10)}</td></tr>`});
+t+='</tbody>';document.getElementById('h2hTable').innerHTML=t;
+
+/* ---- Ablation ---- */
+new Chart(document.getElementById('ablChart'),{type:'bar',
+  data:{labels:DATA.abl.labels,datasets:[
+    {label:'Recall@10',data:DATA.abl.R10,backgroundColor:C.pos,borderRadius:5},
+    {label:'NDCG@10',data:DATA.abl.N10,backgroundColor:C.acc,borderRadius:5}]},
+  options:{plugins:{title:{display:true,text:'Phase 2 ablation (sampled@500)',color:C.ink}},scales:{y:{beginAtZero:true}}}});
+new Chart(document.getElementById('s3bChart'),{type:'bar',
+  data:{labels:DATA.s3b.labels,datasets:[{label:'AUC',
+    data:DATA.s3b.AUC,backgroundColor:[C.mut,C.pos,C.neg,C.line],borderRadius:5}]},
+  options:{plugins:{legend:{display:false},title:{display:true,text:'ALS trên reviews (full-ranking AUC)',color:C.ink}},scales:{y:{min:0.4,max:0.9}}}});
+
+/* ---- Hybrid ---- */
+new Chart(document.getElementById('hybChart'),{type:'line',
+  data:{labels:DATA.hybrid.alpha,datasets:[
+    {label:'AUC',data:DATA.hybrid.AUC,borderColor:C.acc,backgroundColor:'transparent',yAxisID:'y',tension:.3,pointRadius:4},
+    {label:'Recall@10',data:DATA.hybrid.R10,borderColor:C.pos,backgroundColor:'transparent',yAxisID:'y1',tension:.3,pointRadius:4}]},
+  options:{plugins:{title:{display:true,text:'Hybrid α-sweep (α = trọng số ALS)',color:C.ink}},
+    scales:{y:{position:'left',title:{display:true,text:'AUC'}},y1:{position:'right',title:{display:true,text:'Recall@10'},grid:{drawOnChartArea:false}}}}});
+const bestAUC=Math.max(...DATA.hybrid.AUC), alsAUC=DATA.hybrid.AUC[DATA.hybrid.AUC.length-1];
+document.getElementById('hybBest').textContent=fmt(bestAUC);
+document.getElementById('hybDelta').textContent=((bestAUC-alsAUC>=0?'+':'')+(bestAUC-alsAUC).toFixed(4));
+
+/* ---- Coverage ---- */
+new Chart(document.getElementById('covChart'),{type:'doughnut',
+  data:{labels:['edge có review (5.5%)','không có review (94.5%)'],
+    datasets:[{data:[DATA.coverage.have,DATA.coverage.none],backgroundColor:[C.warn,C.line],borderColor:'#0f1115'}]},
+  options:{plugins:{title:{display:true,text:'Coverage F3 trên edge interactions',color:C.ink},legend:{position:'bottom'}}}});
+document.getElementById('chainTable').innerHTML=
+  '<thead><tr><th>Tín hiệu</th><th>Nguồn</th><th>Phủ chuỗi?</th></tr></thead><tbody>'+
+  '<tr><td>chuỗi hành vi</td><td>interactions.csv</td><td>có</td></tr>'+
+  '<tr><td>review-length (F3)</td><td>reviews</td><td>chỉ 5.5%</td></tr>'+
+  '<tr><td>rating</td><td>cả hai</td><td>có</td></tr></tbody>';
+
+/* ---- Tier 2 · Live Recommendation Explorer ---- */
+let RECDATA=null;
+function recCard(it){
+  const cover = it.img ? `<img class="cv" src="${it.img}" loading="lazy" referrerpolicy="no-referrer"/>` : `<div class="cv"></div>`;
+  const sub = it.genre || it.book_id || '';
+  const badge = it.hit ? '<span class="hitbadge">HIT</span>' : '';
+  return `<div class="recitem ${it.hit?'hit':''}">${cover}<div><div class="tt">${it.title||'(?)'}</div><div class="gn">${sub}</div></div>${badge}</div>`;
+}
+function renderUser(u){
+  const fill=(id,arr)=>document.getElementById(id).innerHTML=(arr&&arr.length)?arr.map(recCard).join(''):'<span class="mut">—</span>';
+  fill('histBox',u.history); fill('truthBox',u.truth);
+  fill('recChainRec',u.models.chainRec); fill('recALS',u.models.ALS); fill('recHybrid',u.models.hybrid);
+}
+function initLive(data){
+  RECDATA=data;
+  document.getElementById('liveLoader').style.display='none';
+  document.getElementById('liveBody').style.display='block';
+  const sel=document.getElementById('userSel');
+  sel.innerHTML=data.users.map((u,i)=>`<option value="${i}">User ${u.uid}</option>`).join('');
+  sel.onchange=()=>renderUser(data.users[+sel.value]);
+  renderUser(data.users[0]);
+}
+fetch('demo_recs.json').then(r=>{if(!r.ok)throw 0;return r.json()}).then(initLive).catch(()=>{
+  document.getElementById('liveStatus').textContent='Chưa nạp được demo_recs.json tự động.';
+  document.getElementById('liveFilePick').style.display='block';
+});
+const rf=document.getElementById('recFile');
+if(rf) rf.addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ try{ initLive(JSON.parse(rd.result)); }catch(err){ alert('JSON lỗi: '+err); } };
+  rd.readAsText(f);
+});
+</script>
+</body>
+</html>
