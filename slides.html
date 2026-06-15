@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Large-Scale Recommender Systems — Amazon → Goodreads → chainRec</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   :root{
     --bg:#f4f7fa; --ink:#1f2933; --muted:#5b6b7b; --card:#ffffff;
@@ -14,66 +15,65 @@
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%}
   body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
-       background:#0b1622;color:var(--ink);overflow:hidden}
-  .deck{height:100vh;width:100vw;display:flex;align-items:center;justify-content:center}
-  .slide{display:none;width:min(1180px,94vw);height:min(680px,92vh);
-         background:var(--bg);border-radius:18px;box-shadow:var(--shadow);
-         padding:48px 56px;position:relative;flex-direction:column;overflow:hidden}
+       background:var(--bg);color:var(--ink);overflow:hidden}
+  .deck{height:100vh;width:100vw;display:flex}
+  .slide{display:none;width:100vw;height:100vh;
+         background:var(--bg);
+         padding:4.2vh 4.5vw 5.6vh;position:relative;flex-direction:column;overflow:hidden}
   .slide.active{display:flex;animation:fade .35s ease}
   @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-  .tag{display:inline-block;font-size:13px;font-weight:700;letter-spacing:.06em;
-       text-transform:uppercase;padding:4px 12px;border-radius:20px;margin-bottom:14px}
+  .tag{display:inline-block;font-size:clamp(12px,1vw,15px);font-weight:700;letter-spacing:.06em;
+       text-transform:uppercase;padding:5px 14px;border-radius:20px;margin-bottom:1.4vh}
   .tag.t{background:var(--teal-bg);color:var(--teal)}
   .tag.i{background:var(--indigo-bg);color:var(--indigo)}
   .tag.a{background:var(--amber-bg);color:var(--amber)}
-  h1{font-size:40px;line-height:1.12;margin-bottom:14px}
-  h2{font-size:30px;line-height:1.15;margin-bottom:8px;color:var(--ink)}
-  .sub{font-size:18px;color:var(--muted);margin-bottom:18px}
-  p,li{font-size:17px;line-height:1.5;color:var(--ink)}
+  h1{font-size:clamp(36px,4.4vw,62px);line-height:1.1;margin-bottom:1.6vh}
+  h2{font-size:clamp(26px,3vw,44px);line-height:1.12;margin-bottom:.6vh;color:var(--ink)}
+  .sub{font-size:clamp(15px,1.4vw,22px);color:var(--muted);margin-bottom:1.6vh}
+  p,li{font-size:clamp(15px,1.25vw,21px);line-height:1.45;color:var(--ink)}
   .muted{color:var(--muted)}
-  .row{display:flex;gap:22px;flex:1;min-height:0}
-  .col{flex:1;min-width:0;display:flex;flex-direction:column;gap:14px}
+  .row{display:flex;gap:1.6vw;flex:1;min-height:0}
+  .col{flex:1;min-width:0;display:flex;flex-direction:column;gap:1.4vh}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;
-        padding:18px 20px;box-shadow:0 2px 8px rgba(20,40,60,.04)}
-  .card h3{font-size:18px;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+        padding:1.6vh 1.4vw;box-shadow:0 2px 8px rgba(20,40,60,.04)}
+  .card h3{font-size:clamp(15px,1.45vw,22px);margin-bottom:6px;display:flex;align-items:center;gap:8px}
   .card.teal{border-top:4px solid var(--teal)}
   .card.indigo{border-top:4px solid var(--indigo)}
   .card.amber{border-top:4px solid var(--amber)}
-  ul{margin-left:18px;display:flex;flex-direction:column;gap:7px}
+  ul{margin-left:18px;display:flex;flex-direction:column;gap:6px}
   li::marker{color:var(--teal)}
-  .kpi{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
+  .kpi{display:flex;gap:1.2vw;flex-wrap:wrap;margin-top:6px}
   .kpi div{background:var(--card);border:1px solid var(--line);border-radius:12px;
-           padding:12px 16px;text-align:center;min-width:120px;flex:1}
-  .kpi b{display:block;font-size:26px;color:var(--teal)}
-  .kpi span{font-size:13px;color:var(--muted)}
+           padding:1.6vh 18px;text-align:center;min-width:120px;flex:1}
+  .kpi b{display:block;font-size:clamp(28px,3vw,46px);color:var(--teal)}
+  .kpi span{font-size:clamp(12px,1vw,16px);color:var(--muted)}
   img.fig{width:100%;height:100%;object-fit:contain;background:#fff;border:1px solid var(--line);
           border-radius:12px;padding:6px}
   .figwrap{flex:1;min-height:0;display:flex;flex-direction:column}
   .cap{font-size:13px;color:var(--muted);text-align:center;margin-top:6px}
-  table{width:100%;border-collapse:collapse;font-size:15.5px}
-  th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line)}
-  th{color:var(--muted);font-weight:700;font-size:13.5px;text-transform:uppercase;letter-spacing:.03em}
+  table{width:100%;border-collapse:collapse;font-size:clamp(14px,1.15vw,19px)}
+  th,td{padding:1vh 10px;text-align:left;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:700;font-size:clamp(11px,.95vw,15px);text-transform:uppercase;letter-spacing:.03em}
+  td.num,th.num{text-align:right}
   tr.win td{background:var(--teal-bg);font-weight:700}
   tr.win td:first-child{border-left:4px solid var(--teal)}
   .bad{color:var(--red);font-weight:700}
   .good{color:var(--green);font-weight:700}
   .pill{font-size:13px;font-weight:700;padding:3px 10px;border-radius:14px;background:var(--indigo-bg);color:var(--indigo)}
-  .missing{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
-           border:2px dashed var(--red);border-radius:12px;color:var(--red);background:#fff5f5}
-  .missing .x{font-size:54px;font-weight:800;line-height:1}
-  .footer{position:absolute;bottom:16px;left:56px;right:56px;display:flex;
-          justify-content:space-between;align-items:center;font-size:13px;color:var(--muted)}
-  .progress{position:absolute;top:0;left:0;height:5px;background:linear-gradient(90deg,var(--teal),var(--indigo));border-radius:18px 0 0 0}
+  .chartbox{position:relative;flex:1;min-height:150px;width:100%}
+  .footer{position:absolute;bottom:1.6vh;left:4.5vw;right:4.5vw;display:flex;
+          justify-content:space-between;align-items:center;font-size:clamp(12px,1vw,16px);color:var(--muted)}
+  .progress{position:absolute;top:0;left:0;height:6px;background:linear-gradient(90deg,var(--teal),var(--indigo))}
   .nav{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:10px;z-index:20}
   .nav button{background:#16263a;color:#cdd9e5;border:1px solid #2a3f57;border-radius:9px;
-              padding:8px 14px;font-size:14px;cursor:pointer}
+              padding:8px 14px;font-size:clamp(13px,1.1vw,18px);cursor:pointer}
   .nav button:hover{background:#22384f}
   .dots{position:fixed;top:14px;left:50%;transform:translateX(-50%);display:flex;gap:7px;z-index:20}
   .dots i{width:9px;height:9px;border-radius:50%;background:#33485f;cursor:pointer}
   .dots i.on{background:#5eead4;width:22px;border-radius:6px}
-  .lead{font-size:19px}
-  .note{background:var(--amber-bg);border-left:4px solid var(--amber);padding:10px 14px;border-radius:8px;font-size:15px;color:#7c4a12}
-  .big{font-size:22px;font-weight:700}
+  .lead{font-size:clamp(17px,1.7vw,26px)}
+  .note{background:var(--amber-bg);border-left:4px solid var(--amber);padding:1.1vh 14px;border-radius:8px;font-size:clamp(14px,1.15vw,19px);color:#7c4a12}
+  .cap{font-size:clamp(12px,1vw,16px)}
 </style>
 </head>
 <body>
@@ -86,13 +86,13 @@
     <span class="tag t">Mining Massive Datasets · Course Project</span>
     <h1>Large-Scale Recommender Systems<br><span style="color:var(--teal)">Amazon → Goodreads → chainRec</span></h1>
     <p class="lead muted">A three-phase journey: building recommendation pipelines on big data, and learning <b>when a result can actually be trusted</b>.</p>
-    <div class="kpi" style="margin-top:26px">
+    <div class="kpi" style="margin-top:24px">
       <div><b>3</b><span>phases</span></div>
       <div><b>21M+</b><span>reviews processed</span></div>
       <div><b>2</b><span>public datasets</span></div>
       <div><b>5+</b><span>model families</span></div>
     </div>
-    <div class="row" style="flex:none;margin-top:26px">
+    <div class="row" style="flex:none;margin-top:24px">
       <div class="card teal" style="flex:1"><h3>🛒 Phase 1 — Amazon</h3><p class="muted">5-stage rating-prediction pipeline + ensemble. Discovered a structural limit.</p></div>
       <div class="card indigo" style="flex:2"><h3>📚 Phase 2 & 3 — Goodreads <span class="pill">main focus</span></h3><p class="muted">ALS + engagement-weighting + LDA taste; chainRec behavior chains under a rigorous full-ranking evaluator.</p></div>
     </div>
@@ -104,7 +104,7 @@
     <div class="progress"></div>
     <span class="tag i">The Data</span>
     <h2>Two datasets, two lessons</h2>
-    <p class="sub">We started on Amazon, hit a structural wall, and moved to Goodreads — which offers richer signals and a natural behavior chain.</p>
+    <p class="sub">We started on Amazon, hit a structural wall, and moved to Goodreads — richer signals and a natural behavior chain.</p>
     <div class="row">
       <div class="col">
         <div class="card amber">
@@ -115,7 +115,7 @@
             <li>609K users · 145K items</li>
             <li><b>99.99% sparse</b> · heavy long-tail</li>
           </ul>
-          <p class="muted" style="margin-top:10px;font-size:15px">Signal: ratings + review text only.</p>
+          <p class="muted" style="margin-top:10px;font-size:clamp(14px,1.2vw,20px)">Signal: ratings + review text only.</p>
         </div>
       </div>
       <div class="col" style="flex:1.25">
@@ -140,9 +140,7 @@
     <h2>A good RMSE that means nothing</h2>
     <div class="row">
       <div class="col" style="flex:1.3">
-        <div class="figwrap">
-          <img class="fig" src="src/visualize_data/amazon_recsys_pipeline.png" alt="Amazon pipeline">
-        </div>
+        <div class="figwrap"><img class="fig" src="src/visualize_data/amazon_recsys_pipeline.png" alt="Amazon pipeline"></div>
       </div>
       <div class="col">
         <div class="card teal">
@@ -152,7 +150,7 @@
         <div class="card" style="border-top:4px solid var(--red)">
           <h3>⚠ But ranking fails</h3>
           <p>Recommending from all <b>143K items</b>: Recall@10 ≈ 0.0001, <b>coverage only 1.56%</b>.</p>
-          <p class="muted" style="margin-top:6px;font-size:15px">71% of items have ≤20 reviews → embeddings are noise. The model only re-ranks popular items.</p>
+          <p class="muted" style="margin-top:6px;font-size:clamp(14px,1.2vw,20px)">71% of items have ≤20 reviews → embeddings are noise. The model only re-ranks popular items.</p>
         </div>
         <div class="note">→ The problem is the <b>data structure</b>, not the algorithm. This is why we moved to Goodreads.</div>
       </div>
@@ -169,14 +167,14 @@
       <div class="col" style="flex:1.5">
         <div class="figwrap">
           <img class="fig" src="goodreads/charts/newplot4.png" alt="Review length by rating">
-          <div class="cap">Figure: review-length distribution & length by star rating</div>
+          <div class="cap">Review-length distribution & length by star rating</div>
         </div>
       </div>
       <div class="col">
-        <div class="card teal"><h3>📈 Review length ↑ with rating</h3><p class="muted" style="font-size:15px">Users who liked a book write longer reviews → length is an <b>engagement signal</b>.</p></div>
-        <div class="card indigo"><h3>⭐ Skewed to high ratings</h3><p class="muted" style="font-size:15px">~69% are 4–5★ (mean 3.77) → must evaluate ranking, not just averages.</p></div>
-        <div class="card amber"><h3>👍 Votes track popularity</h3><p class="muted" style="font-size:15px">Popular books get more votes regardless of personal fit → risk of popularity bias.</p></div>
-        <div class="card"><h3>🌉 Bridge users</h3><p class="muted" style="font-size:15px">Readers spanning ≥3 genres connect communities (cross-genre signal).</p></div>
+        <div class="card teal"><h3>📈 Review length ↑ with rating</h3><p class="muted" style="font-size:clamp(14px,1.2vw,20px)">Users who liked a book write longer reviews → length is an <b>engagement signal</b>.</p></div>
+        <div class="card indigo"><h3>⭐ Skewed to high ratings</h3><p class="muted" style="font-size:clamp(14px,1.2vw,20px)">~69% are 4–5★ (mean 3.77) → must evaluate ranking, not just averages.</p></div>
+        <div class="card amber"><h3>👍 Votes track popularity</h3><p class="muted" style="font-size:clamp(14px,1.2vw,20px)">Popular books get more votes regardless of fit → popularity-bias risk.</p></div>
+        <div class="card"><h3>🌉 Bridge users</h3><p class="muted" style="font-size:clamp(14px,1.2vw,20px)">Readers spanning ≥3 genres connect communities (cross-genre signal).</p></div>
       </div>
     </div>
     <div class="footer"><span>Goodreads — EDA</span><span>4 / 8</span></div>
@@ -187,93 +185,76 @@
     <div class="progress"></div>
     <span class="tag i">Phase 2 & 3 · Pipeline</span>
     <h2>The Goodreads recommendation pipeline</h2>
-    <div class="figwrap" style="flex:1">
-      <img class="fig" src="goodreads/goodreads_recsys_pipeline.png" alt="Goodreads pipeline">
-    </div>
-    <div class="row" style="flex:none;margin-top:12px">
-      <div class="card teal" style="flex:1"><h3>Phase 2 — ALS + taste</h3><p class="muted" style="font-size:15px">5 edge-weight formulas → ALS candidates → re-rank with LDA taste (40 topics + 10 genres), <b>0.7·ALS + 0.3·taste</b>.</p></div>
-      <div class="card indigo" style="flex:1"><h3>Phase 3 — chainRec + full-ranking</h3><p class="muted" style="font-size:15px">Monotonic behavior chain + a <b>model-agnostic full-ranking evaluator</b> (mask seen, score all 1.57M items).</p></div>
+    <div class="figwrap" style="flex:1"><img class="fig" src="goodreads/goodreads_recsys_pipeline.png" alt="Goodreads pipeline"></div>
+    <div class="row" style="flex:none;margin-top:10px">
+      <div class="card teal" style="flex:1"><h3>Phase 2 — ALS + taste</h3><p class="muted" style="font-size:clamp(14px,1.15vw,19px)">5 edge-weight formulas → ALS candidates → re-rank with LDA taste (40 topics + 10 genres), <b>0.7·ALS + 0.3·taste</b>.</p></div>
+      <div class="card indigo" style="flex:1"><h3>Phase 3 — chainRec + full-ranking</h3><p class="muted" style="font-size:clamp(14px,1.15vw,19px)">Monotonic behavior chain + a <b>model-agnostic full-ranking evaluator</b> (mask seen, score all 1.57M items).</p></div>
     </div>
     <div class="footer"><span>Pipeline</span><span>5 / 8</span></div>
   </section>
 
-  <!-- 6 ABLATION RESULTS -->
+  <!-- 6 ABLATION (charts) -->
   <section class="slide">
     <div class="progress"></div>
-    <span class="tag t">Results · Phase 2</span>
-    <h2>Edge-weighting ablation (sampled@500)</h2>
-    <p class="sub">Which signal should weight the user–book matrix? We compared 5 formulas.</p>
+    <span class="tag t">Results · Engagement weighting</span>
+    <h2>Which signal weights the matrix — and does it survive?</h2>
     <div class="row">
-      <div class="col" style="flex:1.3">
-        <div class="card" style="padding:6px 14px">
-          <table>
-            <tr><th>Formula</th><th>Recall@10</th><th>NDCG@10</th><th>vs F2</th></tr>
-            <tr class="win"><td>F3 · rating×log(len+1)</td><td>0.6122</td><td>0.5369</td><td>+3.6%</td></tr>
-            <tr><td>F2 · rating only (baseline)</td><td>0.5757</td><td>0.5107</td><td>—</td></tr>
-            <tr><td>F5 · binary (≥4)</td><td>0.5613</td><td>0.4995</td><td class="bad">−2.5%</td></tr>
-            <tr><td>F1 · rating×log(votes+1)</td><td>0.4744</td><td>0.4217</td><td class="bad">−17.6%</td></tr>
-            <tr><td>F4 · votes × length</td><td>0.4237</td><td>0.3752</td><td class="bad">−26.4%</td></tr>
-          </table>
+      <div class="col">
+        <div class="card teal" style="flex:1;display:flex;flex-direction:column">
+          <h3 style="font-size:clamp(14px,1.2vw,20px)">Phase 2 — ablation of 5 formulas <span class="pill" style="background:var(--teal-bg);color:var(--teal)">sampled@500</span></h3>
+          <div class="chartbox"><canvas id="ablChart"></canvas></div>
+          <p class="muted" style="font-size:clamp(13px,1.05vw,17px);margin-top:6px">F3 = rating×log(len+1) wins (+3.6% R@10); votes (F1/F4) lose heavily → popularity bias.</p>
         </div>
       </div>
       <div class="col">
-        <div class="card teal"><h3>✓ Review length wins</h3><p class="muted" style="font-size:15px">F3 beats rating-only by <b>+3.6%</b> — a cheap, available engagement signal.</p></div>
-        <div class="card" style="border-top:4px solid var(--red)"><h3>✗ Votes hurt</h3><p class="muted" style="font-size:15px">F1/F4 lose heavily → votes inject <b>popularity bias</b>, drowning the long tail.</p></div>
-        <div class="card indigo"><h3>+ Taste blend</h3><p class="muted" style="font-size:15px">LDA taste adds <b>+3.8%</b> over ALS-only; final Recall@10 = <b>0.6122</b>.</p></div>
+        <div class="card" style="flex:1;display:flex;flex-direction:column;border-top:4px solid var(--red)">
+          <h3 style="font-size:clamp(14px,1.2vw,20px)">Phase 3 — same signal, <span class="pill" style="background:var(--amber-bg);color:var(--amber)">full-ranking</span></h3>
+          <div class="chartbox"><canvas id="s3bChart"></canvas></div>
+          <p class="muted" style="font-size:clamp(13px,1.05vw,17px);margin-top:6px">On reviews (F3 coverage 100%): F3 <span class="bad">−0.8%</span> AUC (flat), votes <span class="bad">−5.8%</span> → the +3.6% was a sampled@500 artifact; votes-bias is real across protocols.</p>
+        </div>
       </div>
     </div>
-    <div class="footer"><span>Phase 2 — Ablation</span><span>6 / 8</span></div>
+    <div class="footer"><span>Results — Ablation</span><span>6 / 8</span></div>
   </section>
 
-  <!-- 7 CHAINREC / FULL-RANKING -->
+  <!-- 7 HEAD-TO-HEAD (charts + table) -->
   <section class="slide">
     <div class="progress"></div>
     <span class="tag i">Results · Phase 3 — the core contribution</span>
-    <h2>Does the result survive full-ranking?</h2>
-    <p class="sub">A shared evaluator scores ALS / chainRec / hybrid on the same test, pool & mask.</p>
+    <h2>Head-to-head under full-ranking (same test / pool / mask)</h2>
     <div class="row">
       <div class="col">
-        <div class="card" style="padding:6px 14px">
-          <table>
-            <tr><th>Model (full-rank)</th><th>AUC</th><th>Recall@10</th></tr>
-            <tr class="win"><td>ALS (vanilla)</td><td>0.9646</td><td>0.1588</td></tr>
-            <tr><td>Hybrid ALS⊕chainRec</td><td>0.9647</td><td>0.1606</td></tr>
-            <tr><td>chainRec (stagewise)</td><td>0.9525</td><td>0.0500</td></tr>
-            <tr><td>itemPop (floor)</td><td>0.2918</td><td>0.0032</td></tr>
-          </table>
-        </div>
-        <div class="note">AUC ~0.95 with Recall@10 ~0.05 is consistent: with 1.57M items, even 0.95 leaves tens of thousands of items above the positive.</div>
+        <div class="card" style="flex:1;display:flex;flex-direction:column"><div class="chartbox"><canvas id="aucChart"></canvas></div></div>
+        <div class="card" style="flex:1;display:flex;flex-direction:column"><div class="chartbox"><canvas id="r10Chart"></canvas></div></div>
       </div>
       <div class="col">
-        <div class="card" style="border-top:4px solid var(--red)">
-          <h3>⚠ sampled@500 inflates</h3>
-          <p class="muted" style="font-size:15px">Review-length F3: <span class="good">+3.6%</span> (sampled) → <span class="bad">−0.8% AUC</span> (full-ranking). Votes: <span class="bad">−5.8% AUC</span>.</p>
+        <div class="card" style="padding:8px 16px">
+          <table id="h2hTable"></table>
         </div>
-        <div class="card teal"><h3>ALS ≥ chainRec; hybrid ≈ ALS</h3><p class="muted" style="font-size:15px">Confirms the paper: Goodreads is unfavorable to chainRec.</p></div>
-        <div class="card indigo"><h3>Transfer limit</h3><p class="muted" style="font-size:15px">Review-length covers only <b>5.5%</b> of chain edges → cannot weight chainRec.</p></div>
+        <div class="card teal"><h3 style="font-size:clamp(14px,1.2vw,20px)">ALS ≥ chainRec · hybrid ≈ ALS</h3><p class="muted" style="font-size:clamp(13px,1.1vw,18px)">Confirms the paper: Goodreads is unfavorable to chainRec. AUC ~0.95 with R@10 ~0.05 is consistent (1.57M-item pool).</p></div>
+        <div class="note"><b>Protocol trap:</b> review-length F3 <span class="good">+3.6%</span> (sampled) → <span class="bad">−0.8% AUC</span> (full). Transfer limit: F3 covers only <b>5.5%</b> of chain edges.</div>
       </div>
     </div>
     <div class="footer"><span>Phase 3 — Full-ranking</span><span>7 / 8</span></div>
   </section>
 
-  <!-- 8 CONTRIBUTIONS + DEMO -->
+  <!-- 8 DEMO + CONTRIBUTIONS -->
   <section class="slide">
     <div class="progress"></div>
-    <span class="tag t">Contributions · Demo · Conclusion</span>
-    <h2>What we delivered</h2>
+    <span class="tag t">Live System · Contributions</span>
+    <h2>A working recommender + what we contribute</h2>
     <div class="row">
-      <div class="col">
-        <div class="card teal"><h3>✓ Positive results</h3><p class="muted" style="font-size:15px">Review-length is the best engagement weight (+3.6% R@10); <code>stagewise > uniform</code> reproduces chainRec (+2.9%).</p></div>
-        <div class="card indigo"><h3>★ Methodological contribution</h3><p class="muted" style="font-size:15px">A shared full-ranking evaluator shows <b>sampled@500 inflates</b> gains, and quantifies a <b>transfer limit</b>.</p></div>
-        <div class="card amber"><h3>🧩 Working system</h3><p class="muted" style="font-size:15px">3 recommenders (Amazon ensemble, Goodreads ALS+taste, chainRec/hybrid) + an interactive <b>web demo</b>.</p></div>
-        <div class="card"><h3>🎯 Takeaway</h3><p class="muted" style="font-size:15px">Choosing the right dataset & evaluation protocol matters as much as choosing the algorithm.</p></div>
+      <div class="col" style="flex:1.35">
+        <div class="figwrap">
+          <img class="fig" src="goodreads/charts/Screenshot demo.png" alt="Web demo — Live Recommendation Explorer">
+          <div class="cap">Live Recommendation Explorer — top-8 of chainRec / ALS / hybrid vs reading history & ground-truth (green = hit)</div>
+        </div>
       </div>
       <div class="col">
-        <div class="missing">
-          <div class="x">✗</div>
-          <p style="font-weight:700;margin-top:8px">Screenshot needed</p>
-          <p style="font-size:14px;text-align:center;padding:0 18px">Web demo (<code>results_demo.html</code> — Live Recommendation Explorer).<br>Please provide an image to insert here.</p>
-        </div>
+        <div class="card teal"><h3 style="font-size:clamp(14px,1.2vw,20px)">✓ Positive results</h3><p class="muted" style="font-size:clamp(13px,1.1vw,18px)">Review-length is the best engagement weight (+3.6% R@10); <code>stagewise &gt; uniform</code> (+2.9%).</p></div>
+        <div class="card indigo"><h3 style="font-size:clamp(14px,1.2vw,20px)">★ Methodological</h3><p class="muted" style="font-size:clamp(13px,1.1vw,18px)">Shared full-ranking evaluator shows <b>sampled@500 inflates</b> gains + quantifies a <b>transfer limit</b>.</p></div>
+        <div class="card amber"><h3 style="font-size:clamp(14px,1.2vw,20px)">🧩 Working system</h3><p class="muted" style="font-size:clamp(13px,1.1vw,18px)">3 recommenders + this interactive web demo.</p></div>
+        <div class="card"><h3 style="font-size:clamp(14px,1.2vw,20px)">🎯 Takeaway</h3><p class="muted" style="font-size:clamp(13px,1.1vw,18px)">Right dataset & evaluation matter as much as the algorithm.</p></div>
       </div>
     </div>
     <div class="footer"><span>Thank you — Group 5</span><span>8 / 8</span></div>
@@ -288,25 +269,79 @@
 </div>
 
 <script>
-  const slides=[...document.querySelectorAll('.slide')];
-  const dots=document.getElementById('dots');
-  let cur=0;
-  slides.forEach((_,k)=>{const d=document.createElement('i');d.onclick=()=>show(k);dots.appendChild(d);});
-  function show(n){
-    cur=Math.max(0,Math.min(slides.length-1,n));
-    slides.forEach((s,k)=>s.classList.toggle('active',k===cur));
-    [...dots.children].forEach((d,k)=>d.classList.toggle('on',k===cur));
-    const p=slides[cur].querySelector('.progress');
-    if(p)p.style.width=((cur+1)/slides.length*100)+'%';
+/* ===== data from results_demo.html (S0–S4, full-ranking) ===== */
+const DATA = {
+  s2:{
+    "chainRec (uniform)":{AUC:0.9500,R10:0.0506,N10:0.0288},
+    "chainRec (stagewise)":{AUC:0.9525,R10:0.0500,N10:0.0301},
+    "ALS (vanilla)":{AUC:0.9646,R10:0.1588,N10:0.0988},
+    "Hybrid (best α)":{AUC:0.9647,R10:0.1606,N10:0.0994},
+    "itemPop (floor)":{AUC:0.2918,R10:0.0032,N10:0.0016}
+  },
+  abl:{labels:["F3 length ★","F2 baseline","F5 binary","F1 votes","F4 votes+len"],
+       R10:[0.6122,0.5757,0.5613,0.4744,0.4237], N10:[0.5369,0.5107,0.4995,0.4217,0.3752]},
+  s3b:{labels:["vanilla","+F3 length","+votes","itemPop"], AUC:[0.8419,0.8350,0.7931,0.4636]}
+};
+const P={teal:'#0f766e',indigo:'#4338ca',amber:'#b45309',red:'#b91c1c',green:'#15803d',
+         purple:'#7c3aed',blue:'#2563eb',gray:'#94a3b8',muted:'#5b6b7b'};
+const fmt=v=>v.toFixed(4);
+
+/* ===== lazy chart builders per slide index (0-based) ===== */
+const built={};
+const builders={
+  5(){ // slide 6 — ablation
+    new Chart(ablChart,{type:'bar',
+      data:{labels:DATA.abl.labels,datasets:[
+        {label:'Recall@10',data:DATA.abl.R10,backgroundColor:P.teal,borderRadius:5},
+        {label:'NDCG@10',data:DATA.abl.N10,backgroundColor:P.indigo,borderRadius:5}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{position:'top'}},scales:{y:{beginAtZero:true}}}});
+    new Chart(s3bChart,{type:'bar',
+      data:{labels:DATA.s3b.labels,datasets:[{label:'AUC',data:DATA.s3b.AUC,
+        backgroundColor:[P.gray,P.teal,P.red,'#cbd5e1'],borderRadius:5}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false}},scales:{y:{min:0.4,max:0.9}}}});
+  },
+  6(){ // slide 7 — head-to-head
+    const labels=Object.keys(DATA.s2);
+    const cols=[P.purple,P.purple,P.blue,P.teal,P.gray];
+    new Chart(aucChart,{type:'bar',
+      data:{labels,datasets:[{label:'AUC',data:labels.map(k=>DATA.s2[k].AUC),backgroundColor:cols,borderRadius:5}]},
+      options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},title:{display:true,text:'AUC (full-ranking)'}},scales:{x:{min:0.25,max:1}}}});
+    new Chart(r10Chart,{type:'bar',
+      data:{labels,datasets:[{label:'Recall@10',data:labels.map(k=>DATA.s2[k].R10),backgroundColor:cols,borderRadius:5}]},
+      options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},title:{display:true,text:'Recall@10 (full-ranking)'}},scales:{x:{beginAtZero:true}}}});
+    let t='<thead><tr><th>Model</th><th class="num">AUC</th><th class="num">R@10</th></tr></thead><tbody>';
+    labels.forEach(k=>{const r=DATA.s2[k];const win=k.startsWith('ALS')?' class="win"':'';
+      t+=`<tr${win}><td>${k}</td><td class="num">${fmt(r.AUC)}</td><td class="num">${fmt(r.R10)}</td></tr>`});
+    document.getElementById('h2hTable').innerHTML=t+'</tbody>';
   }
-  function go(d){show(cur+d);}
-  function toggleFull(){if(!document.fullscreenElement)document.documentElement.requestFullscreen();else document.exitFullscreen();}
-  document.addEventListener('keydown',e=>{
-    if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){go(1);e.preventDefault();}
-    if(e.key==='ArrowLeft'||e.key==='PageUp'){go(-1);}
-    if(e.key==='Home')show(0); if(e.key==='End')show(slides.length-1);
-  });
-  show(0);
+};
+
+/* ===== deck nav ===== */
+const slides=[...document.querySelectorAll('.slide')];
+const dots=document.getElementById('dots');
+let cur=0;
+slides.forEach((_,k)=>{const d=document.createElement('i');d.onclick=()=>show(k);dots.appendChild(d);});
+function show(n){
+  cur=Math.max(0,Math.min(slides.length-1,n));
+  slides.forEach((s,k)=>s.classList.toggle('active',k===cur));
+  [...dots.children].forEach((d,k)=>d.classList.toggle('on',k===cur));
+  const p=slides[cur].querySelector('.progress');
+  if(p)p.style.width=((cur+1)/slides.length*100)+'%';
+  if(builders[cur]&&!built[cur]){ built[cur]=true; requestAnimationFrame(()=>builders[cur]()); }
+}
+function go(d){show(cur+d);}
+function toggleFull(){if(!document.fullscreenElement)document.documentElement.requestFullscreen();else document.exitFullscreen();}
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){go(1);e.preventDefault();}
+  if(e.key==='ArrowLeft'||e.key==='PageUp'){go(-1);}
+  if(e.key==='Home')show(0); if(e.key==='End')show(slides.length-1);
+});
+if(window.Chart){Chart.defaults.color=P.muted;Chart.defaults.borderColor='#e2e8f0';Chart.defaults.font.family='Segoe UI, system-ui';}
+show(0);
 </script>
 </body>
 </html>
