@@ -1,0 +1,194 @@
+========== CELL index 1 ==========
+# =============================================================================
+# CELL 2 — Data Loader (Phase 0)
+# =============================================================================
+
+from __future__ import annotations
+import json, pickle
+from pathlib import Path
+from collections import defaultdict
+from dataclasses import dataclass, asdict
+from typing import Optional
+import numpy as np
+import pandas as pd
+
+@dataclass
+class DataConfig:
+    raw_csv: str = "/kaggle/working/goodreads_interactions.csv"
+    out_dir: str = "/kaggle/working/processed"
+    n_stages: int = 4
+    recommend_threshold: int = 4
+    min_user_inter: int = 5
+    min_item_inter: int = 5
+    require_final_stage: bool = True
+    sample_n_users: Optional[int] = None
+    sample_seed: int = 1234
+    n_val_users: int = 5000
+    n_test_users: int = 5000
+
+
+class GoodreadsChainLoader:
+    def __init__(self, cfg: DataConfig):
+        self.cfg = cfg
+        Path(cfg.out_dir).mkdir(parents=True, exist_ok=True)
+        self.user_idx: dict = {}
+        self.item_idx: dict = {}
+        self.n_user: int = 0
+        self.n_item: int = 0
+        self.interactions: np.ndarray = None
+        self.user_item_map: dict = defaultdict(set)
+
+    def _first_pass_counts(self, chunksize=5_000_000):
+        print("[1/4] First pass: counting interactions...")
+        user_counts, item_counts = defaultdict(int), defaultdict(int)
+        n_rows = 0
+        for chunk in pd.read_csv(self.cfg.raw_csv,
+                                  usecols=["user_id","book_id","is_read","rating"],
+                                  chunksize=chunksize,
+                                  dtype={"user_id":np.int32,"book_id":np.int32,
+                                         "is_read":np.int8,"rating":np.int8}):
+            for u, c in chunk["user_id"].value_counts().items(): user_counts[u] += c
+            for i, c in chunk["book_id"].value_counts().items(): item_counts[i] += c
+            n_rows += len(chunk)
+            print(f"    ...{n_rows:,} rows", end="\r")
+        print(f"\n    total={n_rows:,}, users={len(user_counts):,}, items={len(item_counts):,}")
+        return user_counts, item_counts
+
+    def _build_id_maps(self, user_counts, item_counts):
+        print("[2/4] Filtering and building id maps...")
+        valid_users = {u for u,c in user_counts.items() if c >= self.cfg.min_user_inter}
+        valid_items = {i for i,c in item_counts.items() if c >= self.cfg.min_item_inter}
+        print(f"    valid users={len(valid_users):,}, items={len(valid_items):,}")
+        if self.cfg.sample_n_users is not None:
+            rng = np.random.default_rng(self.cfg.sample_seed)
+            lst = sorted(valid_users)
+            if len(lst) > self.cfg.sample_n_users:
+                valid_users = set(rng.choice(lst, size=self.cfg.sample_n_users, replace=False).tolist())
+                print(f"    sampled {len(valid_users):,} users")
+        self.user_idx = {u:i for i,u in enumerate(sorted(valid_users))}
+        self.item_idx = {b:i for i,b in enumerate(sorted(valid_items))}
+        self.n_user = len(self.user_idx)
+        self.n_item = len(self.item_idx)
+        return valid_users, valid_items
+
+    def _second_pass_extract(self, valid_users, valid_items, chunksize=5_000_000):
+        print("[3/4] Second pass: extracting chains...")
+        rows, n_rows = [], 0
+        for chunk in pd.read_csv(self.cfg.raw_csv,
+                                  usecols=["user_id","book_id","is_read","rating"],
+                                  chunksize=chunksize,
+                                  dtype={"user_id":np.int32,"book_id":np.int32,
+                                         "is_read":np.int8,"rating":np.int8}):
+            mask = chunk["user_id"].isin(valid_users) & chunk["book_id"].isin(valid_items)
+            sub = chunk[mask]
+            if len(sub) == 0:
+                n_rows += len(chunk)
+                continue
+            stage = np.zeros(len(sub), dtype=np.int8)
+            stage[sub["is_read"].values == 1] = 1
+            rated = sub["rating"].values > 0
+            stage[rated] = np.maximum(stage[rated], 2)
+            recom = sub["rating"].values >= self.cfg.recommend_threshold
+            stage[recom] = np.maximum(stage[recom], 3)
+            u_idx = sub["user_id"].map(self.user_idx).values
+            i_idx = sub["book_id"].map(self.item_idx).values
+            rows.append(np.stack([u_idx, i_idx, stage], axis=1))
+            n_rows += len(chunk)
+            print(f"    ...{n_rows:,} rows, kept {sum(len(r) for r in rows):,}", end="\r")
+        self.interactions = np.concatenate(rows).astype(np.int32)
+        print(f"\n    kept {len(self.interactions):,} interactions")
+
+    def _post_filter_and_index(self):
+        print("[4/4] Post-filter...")
+        if self.cfg.require_final_stage:
+            last = self.cfg.n_stages - 1
+            users_with_last = np.unique(self.interactions[self.interactions[:,2]==last, 0])
+            keep = np.isin(self.interactions[:,0], users_with_last)
+            self.interactions = self.interactions[keep]
+            kept = np.unique(self.interactions[:,0])
+            remap = {old:new for new,old in enumerate(kept)}
+            self.interactions[:,0] = np.array([remap[u] for u in self.interactions[:,0]], dtype=np.int32)
+            inv = {v:k for k,v in self.user_idx.items()}
+            self.user_idx = {inv[old]:new for old,new in remap.items()}
+            self.n_user = len(kept)
+            print(f"    {self.n_user:,} users, {len(self.interactions):,} interactions")
+        for u,i,_ in self.interactions:
+            self.user_item_map[int(u)].add(int(i))
+        stage_counts = np.bincount(self.interactions[:,2], minlength=self.cfg.n_stages)
+        print("    stage dist: " + ", ".join(f"stage{l}={c:,}" for l,c in enumerate(stage_counts)))
+
+    def split_train_test(self):
+        print("Splitting...")
+        rng = np.random.default_rng(self.cfg.sample_seed)
+        last = self.cfg.n_stages - 1
+        user_final = defaultdict(list)
+        for idx,(u,i,s) in enumerate(self.interactions):
+            if s == last: user_final[int(u)].append(idx)
+        eligible = [u for u,idxs in user_final.items() if len(idxs) >= 3]
+        rng.shuffle(eligible)
+        n_val  = min(self.cfg.n_val_users,  len(eligible) // 2)
+        n_test = min(self.cfg.n_test_users, len(eligible) - n_val)
+        val_idx  = [rng.choice(user_final[u]) for u in eligible[:n_val]]
+        test_idx = [rng.choice(user_final[u]) for u in eligible[n_val:n_val+n_test]]
+        holdout = set(val_idx) | set(test_idx)
+        mask = np.ones(len(self.interactions), dtype=bool)
+        mask[list(holdout)] = False
+        self.data_train = self.interactions[mask]
+        self.data_val   = self.interactions[val_idx]
+        self.data_test  = self.interactions[test_idx]
+        print(f"    train={len(self.data_train):,}, val={len(self.data_val):,}, test={len(self.data_test):,}")
+
+    def build(self):
+        uc, ic = self._first_pass_counts()
+        vu, vi = self._build_id_maps(uc, ic)
+        self._second_pass_extract(vu, vi)
+        self._post_filter_and_index()
+        self.split_train_test()
+        return self
+
+    def save(self):
+        out = Path(self.cfg.out_dir)
+        np.save(out/"data_train.npy", self.data_train)
+        np.save(out/"data_val.npy",   self.data_val)
+        np.save(out/"data_test.npy",  self.data_test)
+        pickle.dump(self.user_idx,        open(out/"user_idx.pkl","wb"))
+        pickle.dump(self.item_idx,        open(out/"item_idx.pkl","wb"))
+        pickle.dump(dict(self.user_item_map), open(out/"user_item_map.pkl","wb"))
+        json.dump({"n_user":self.n_user,"n_item":self.n_item,"n_stage":self.cfg.n_stages,
+                   "config":asdict(self.cfg)},
+                  open(out/"meta.json","w"), indent=2)
+        print(f"Saved to {out}/")
+========== CELL index 2 ==========
+# =============================================================================
+# CELL 3 — Chạy data loader (skip nếu đã có processed data)
+# =============================================================================
+
+PROC = Path("/kaggle/working/processed")
+
+if not (PROC / "data_train.npy").exists():
+    cfg_data = DataConfig(
+        raw_csv        = "/kaggle/working/goodreads_interactions.csv",
+        out_dir        = "/kaggle/working/processed",
+        sample_n_users = 50000,   # tăng lên None nếu muốn full dataset
+        n_val_users    = 5000,
+        n_test_users   = 5000,
+    )
+    loader = GoodreadsChainLoader(cfg_data).build()
+    loader.save()
+else:
+    print("Processed data đã có, skip.")
+========== CELL index 3 ==========
+
+# =============================================================================
+# CELL 4 — Load processed data
+# =============================================================================
+
+data_train = np.load(PROC / "data_train.npy")
+data_val   = np.load(PROC / "data_val.npy")
+data_test  = np.load(PROC / "data_test.npy")
+with open(PROC / "user_item_map.pkl", "rb") as f:
+    user_item_map = pickle.load(f)
+meta = json.loads((PROC / "meta.json").read_text())
+
+print(f"n_user={meta['n_user']:,}, n_item={meta['n_item']:,}, n_stage={meta['n_stage']}")
+print(f"train={len(data_train):,}, val={len(data_val):,}, test={len(data_test):,}")
